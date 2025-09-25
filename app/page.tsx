@@ -10,37 +10,37 @@ export default function Home() {
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
- async function fileToAttachment(file: File) {
-  const buf = await file.arrayBuffer();
-  let binary = "";
-  const bytes = new Uint8Array(buf);
-  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-  const base64 = typeof window !== "undefined" ? btoa(binary) : "";
-  return { filename: file.name, base64, contentType: file.type || "application/octet-stream" };
-}
+  // Browser-safe base64
+  async function fileToAttachment(file: File): Promise<Attachment> {
+    const buf = await file.arrayBuffer();
+    let binary = "";
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    const base64 = typeof window !== "undefined" ? btoa(binary) : "";
+    return { filename: file.name, base64, contentType: file.type || "application/octet-stream" };
+  }
 
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSending(true);
+    setSuccess(null);
+    setError(null);
 
     const form = e.currentTarget;
     const fd = new FormData(form);
 
     // Collect files into base64 attachments
-    async function fileToAttachment(file: File): Promise<Attachment> {
-      const arrayBuf = await file.arrayBuffer();
-      const base64 = Buffer.from(arrayBuf).toString("base64");
-      return { filename: file.name, base64, contentType: file.type || "application/octet-stream" };
-    }
-
     const offerFiles = fd.getAll("offer_files") as File[];
     const photoFiles = fd.getAll("photos") as File[];
 
     const offerAttachments: Attachment[] = [];
     for (const f of offerFiles) {
-      if (f && f.size > 0) offerAttachments.push(await fileToAttachment(f));
+      if (f && (f as File).size > 0) offerAttachments.push(await fileToAttachment(f as File));
     }
 
     const photoAttachments: Attachment[] = [];
     for (const f of photoFiles) {
-      if (f && f.size > 0) photoAttachments.push(await fileToAttachment(f));
+      if (f && (f as File).size > 0) photoAttachments.push(await fileToAttachment(f as File));
     }
 
     const payload = {
@@ -53,7 +53,7 @@ export default function Home() {
       year: fd.get("year"),
       make: fd.get("make"),
       model: fd.get("model"),
-      titleStatus: fd.get("title_status"),
+      titleStatus: fd.get("title_status"),          // normalized on API
       payoff: fd.get("payoff"),
       payoffBank: fd.get("payoff_bank"),
       offerSource: fd.get("offer_source"),
@@ -102,7 +102,7 @@ export default function Home() {
             <ul className="mt-4 space-y-2 text-slate-700 list-disc pl-5">
               <li>Offer must be valid & unexpired.</li>
               <li>We verify VIN, mileage, and condition. No Photoshops.</li>
-              <li>Title on hand or loan payoff PDF from your bank.</li>
+              <li>Title in hand or loan payoff PDF from your bank.</li>
               <li>We may request a quick FaceTime condition check.</li>
             </ul>
             <div className="mt-6">
@@ -260,3 +260,4 @@ export default function Home() {
     </main>
   );
 }
+
