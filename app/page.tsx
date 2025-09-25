@@ -10,11 +10,15 @@ export default function Home() {
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSending(true);
-    setSuccess(null);
-    setError(null);
+ async function fileToAttachment(file: File) {
+  const buf = await file.arrayBuffer();
+  let binary = "";
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  const base64 = typeof window !== "undefined" ? btoa(binary) : "";
+  return { filename: file.name, base64, contentType: file.type || "application/octet-stream" };
+}
+
 
     const form = e.currentTarget;
     const fd = new FormData(form);
