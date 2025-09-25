@@ -1,6 +1,6 @@
-import { Resend } from "@resend/node";
+import { Resend } from "resend";
 
-export const runtime = "edge";
+export const runtime = "nodejs"; // Use Node runtime for email SDKs
 
 function isNonEmpty(x: any): boolean {
   return x !== undefined && x !== null && String(x).trim().length > 0;
@@ -10,9 +10,19 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const required = ["name","email","phone","zip","vin","mileage","year","make","model","titleStatus","offerSource","offerAmount","offerExpires"];
+    // Normalize snake_case to camelCase for safety
+    const normalized = {
+      ...body,
+      titleStatus: body.titleStatus ?? body.title_status,
+    };
+
+    const required = [
+      "name","email","phone","zip",
+      "vin","mileage","year","make","model",
+      "titleStatus","offerSource","offerAmount","offerExpires"
+    ];
     for (const k of required) {
-      if (!isNonEmpty(body[k])) {
+      if (!isNonEmpty((normalized as any)[k])) {
         return new Response(JSON.stringify({ error: `Missing required field: ${k}` }), { status: 400 });
       }
     }
@@ -25,36 +35,35 @@ export async function POST(req: Request) {
 
     const resend = new Resend(resendKey);
 
-    const subject = `OfferBeater: ${body.year} ${body.make} ${body.model} — ${body.vin}`;
+    const subject = `OfferBeater: ${normalized.year} ${normalized.make} ${normalized.model} — ${normalized.vin}`;
 
     const lines = [
-      `Name: ${body.name}`,
-      `Email: ${body.email}`,
-      `Phone: ${body.phone}`,
-      `ZIP: ${body.zip}`,
-      `Vehicle: ${body.year} ${body.make} ${body.model}`,
-      `Mileage: ${body.mileage}`,
-      `VIN: ${body.vin}`,
-      `Title Status: ${body.titleStatus}`,
-      `Payoff: ${body.payoff || "-"}`,
-      `Payoff Bank: ${body.payoffBank || "-"}`,
-      `Offer Source: ${body.offerSource}`,
-      `Offer Amount: ${body.offerAmount}`,
-      `Offer Expires: ${body.offerExpires}`,
-      `CARFAX Consent: ${body.carfaxConsent ? "Yes" : "No"}`,
-      `Damage Notes: ${body.damageNotes || "-"}`,
+      `Name: ${normalized.name}`,
+      `Email: ${normalized.email}`,
+      `Phone: ${normalized.phone}`,
+      `ZIP: ${normalized.zip}`,
+      `Vehicle: ${normalized.year} ${normalized.make} ${normalized.model}`,
+      `Mileage: ${normalized.mileage}`,
+      `VIN: ${normalized.vin}`,
+      `Title Status: ${normalized.titleStatus}`,
+      `Payoff: ${normalized.payoff || "-"}`,
+      `Payoff Bank: ${normalized.payoffBank || "-"}`,
+      `Offer Source: ${normalized.offerSource}`,
+      `Offer Amount: ${normalized.offerAmount}`,
+      `Offer Expires: ${normalized.offerExpires}`,
+      `CARFAX Consent: ${normalized.carfaxConsent ? "Yes" : "No"}`,
+      `Damage Notes: ${normalized.damageNotes || "-"}`,
     ].join("\n");
 
-    // Prepare attachments if present
-    const attach = [];
-    if (Array.isArray(body.offerAttachments)) {
-      for (const a of body.offerAttachments.slice(0, 4)) {
-        attach.push({ filename: `offer-${a.filename}`, content: a.base64, path: undefined, contentType: a.contentType });
+    const attachments: any[] = [];
+    if (Array.isArray(normalized.offerAttachments)) {
+      for (const a of normalized.offerAttachments.slice(0, 4)) {
+        attachments.push({ filename: `offer-${a.filename}`, content: a.base64, contentType: a.contentType });
       }
     }
-    if (Array.isArray(body.photoAttachments)) {
-      for (const a of body.photoAttachments.slice(0, 6)) {
-        attach.push({ filename: `photo-${a.filename}`, content: a.base64, path: undefined, contentType: a.contentType });
+    if (Array.isArray(normalized.photoAttachments)) {
+      for (const a of normalized.photoAttachments.slice(0, 6)) {
+        attachments.push({ filename: `photo-${a.filename}`, content: a.base64, contentType: a.contentType });
       }
     }
 
@@ -63,12 +72,12 @@ export async function POST(req: Request) {
       to: [to],
       subject,
       text: lines,
-      attachments: attach as any,
+      attachments,
     });
 
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
-
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e?.message || "Unknown error" }), { status: 500 });
   }
 }
+
